@@ -4,7 +4,7 @@ Input must be the note text.
 Does NOT deal with finding the note in the file.*/
 
 import { FormatConverter } from './format'
-import { AnkiConnectNote, AnkiConnectNoteAndID } from './interfaces/note-interface'
+import { AnkiConnectNote, AnkiConnectNoteAndID, NoteMeta } from './interfaces/note-interface'
 import { FIELDS_DICT, FROZEN_FIELDS_DICT } from './interfaces/field-interface'
 import { FileData } from './interfaces/settings-interface'
 
@@ -33,7 +33,9 @@ function note_has_clozes(note: AnkiConnectNote): boolean {
 	return false
 }
 
+
 abstract class AbstractNote {
+    meta: NoteMeta
     text: string
     split_text: string[]
     current_field_num: number
@@ -49,7 +51,8 @@ abstract class AbstractNote {
 	highlights_to_cloze: boolean
 	no_note_type: boolean
 
-    constructor(note_text: string, fields_dict: FIELDS_DICT, curly_cloze: boolean, highlights_to_cloze: boolean, formatter: FormatConverter) {
+    constructor(noteMeta: NoteMeta, note_text: string, fields_dict: FIELDS_DICT, curly_cloze: boolean, highlights_to_cloze: boolean, formatter: FormatConverter) {
+        this.meta = noteMeta
         this.text = note_text.trim()
         this.current_field_num = 0
         this.delete = false
@@ -88,7 +91,8 @@ abstract class AbstractNote {
         template["fields"] = this.getFields()
 		const file_link_fields = data.file_link_fields
         if (url) {
-            this.formatter.format_note_with_url(template, url, file_link_fields[this.note_type])
+            template.fields[file_link_fields[this.note_type]] += this.meta.source
+            //this.formatter.format_note_with_url(template, url, file_link_fields[this.note_type])
         }
         if (Object.keys(frozen_fields_dict).length) {
             this.formatter.format_note_with_frozen_fields(template, frozen_fields_dict)
@@ -236,6 +240,7 @@ export class InlineNote extends AbstractNote {
 
 export class RegexNote {
 
+    meta: NoteMeta
 	match: RegExpMatchArray
 	note_type: string
 	groups: Array<string>
@@ -247,6 +252,7 @@ export class RegexNote {
 	formatter: FormatConverter
 
 	constructor(
+            noteMeta: NoteMeta,
 			match: RegExpMatchArray,
 			note_type: string,
 			fields_dict: FIELDS_DICT,
@@ -256,6 +262,7 @@ export class RegexNote {
 			highlights_to_cloze: boolean,
 			formatter: FormatConverter
 	) {
+        this.meta = noteMeta
 		this.match = match
 		this.note_type = note_type
 		this.identifier = id ? parseInt(this.match.pop()) : null
@@ -290,7 +297,8 @@ export class RegexNote {
 		template["fields"] = this.getFields()
 		const file_link_fields = data.file_link_fields
 		if (url) {
-            this.formatter.format_note_with_url(template, url, file_link_fields[this.note_type])
+            template.fields[file_link_fields[this.note_type]] += this.meta.source
+            //this.formatter.format_note_with_url(template, url, file_link_fields[this.note_type])
         }
         if (Object.keys(frozen_fields_dict).length) {
             this.formatter.format_note_with_frozen_fields(template, frozen_fields_dict)

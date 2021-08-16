@@ -73,6 +73,8 @@ export class FileManager {
         return "obsidian://open?vault=" + encodeURIComponent(this.data.vault_name) + String.raw`&file=` + encodeURIComponent(file.path)
     }
 
+
+
     getFolderPathList(file: TFile): TFolder[] {
         let result: TFolder[] = []
         let abstractFile: TAbstractFile = file
@@ -125,15 +127,19 @@ export class FileManager {
     }
 
     async genAllFiles() {
+        let vaultName = this.data.vault_name
         for (let file of this.files) {
             const content: string = await this.app.vault.read(file)
             const cache: CachedMetadata = this.app.metadataCache.getCache(file.path)
             const file_data = this.dataToFileData(file)
+            let url = this.data.add_file_link ? this.getUrl(file) : ""
             this.ownFiles.push(
                 new AllFile(
+                    vaultName,
+                    file,
                     content,
                     file.path,
-                    this.data.add_file_link ? this.getUrl(file) : "",
+                    url,
                     file_data,
                     cache
                 )

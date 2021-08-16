@@ -13,3 +13,8 @@ export interface AnkiConnectNoteAndID {
 	note: AnkiConnectNote,
 	identifier: number | null
 }
+
+export interface NoteMeta {
+	url: string
+	source: string
+}

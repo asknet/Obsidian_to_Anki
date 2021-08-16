@@ -1,14 +1,14 @@
 /*Performing plugin operations on markdown file contents*/
 
 import { FROZEN_FIELDS_DICT } from './interfaces/field-interface'
-import { AnkiConnectNote, AnkiConnectNoteAndID } from './interfaces/note-interface'
+import { AnkiConnectNote, AnkiConnectNoteAndID, NoteMeta } from './interfaces/note-interface'
 import { FileData } from './interfaces/settings-interface'
 import { Note, InlineNote, RegexNote, CLOZE_ERROR, NOTE_TYPE_ERROR, TAG_SEP, ID_REGEXP_STR, TAG_REGEXP_STR } from './note'
 import { Md5 } from 'ts-md5/dist/md5';
 import * as AnkiConnect from './anki'
 import * as c from './constants'
 import { FormatConverter } from './format'
-import { CachedMetadata, HeadingCache } from 'obsidian'
+import { CachedMetadata, HeadingCache, TFile } from 'obsidian'
 
 const double_regexp: RegExp = /(?:\r\n|\r|\n)((?:\r\n|\r|\n)(?:<!--)?ID: \d+)/g
 
@@ -70,6 +70,8 @@ function* findignore(pattern: RegExp, text: string, ignore_spans: Array<[number,
 }
 
 abstract class AbstractFile {
+    vaultName: string
+    obfile: TFile
     file: string
     path: string
     url: string
@@ -93,7 +95,9 @@ abstract class AbstractFile {
 
     formatter: FormatConverter
 
-    constructor(file_contents: string, path:string, url: string, data: FileData, file_cache: CachedMetadata) {
+    constructor(vaultName: string, obfile: TFile, file_contents: string, path:string, url: string, data: FileData, file_cache: CachedMetadata) {
+        this.vaultName = vaultName
+        this.obfile = obfile
         this.data = data
         this.file = file_contents
         this.path = path
@@ -117,6 +121,7 @@ abstract class AbstractFile {
             const [note_type, fields]: [string, string] = [match[1], match[2]]
             const virtual_note = note_type + "\n" + fields
             const parsed_fields: Record<string, string> = new Note(
+                {url: "", source: ""},
                 virtual_note,
                 this.data.fields_dict,
                 this.data.curly_cloze,
@@ -148,6 +153,17 @@ abstract class AbstractFile {
         for (let match of this.file.matchAll(this.data.EMPTY_REGEXP)) {
             this.notes_to_delete.push(parseInt(match[1]))
         }
+    }
+
+    getUrl(): string {
+        return "obsidian://open?vault=" + encodeURIComponent(this.vaultName) + String.raw`&file=` + encodeURIComponent(this.obfile.path)
+    }
+
+    getSourceString(): string {
+        let linkText = this.obfile.basename
+        let src = `<a href="${this.getUrl()}" class="obsidian-link">${linkText}</a>`
+        console.log('note source: ' + src)
+        return src;
     }
 
     getContextAtIndex(position: number): string {
@@ -251,8 +267,8 @@ export class AllFile extends AbstractFile {
     regex_notes_to_add: AnkiConnectNote[]
     regex_id_indexes: number[]
 
-    constructor(file_contents: string, path:string, url: string, data: FileData, file_cache: CachedMetadata) {
-        super(file_contents, path, url, data, file_cache)
+    constructor(vaultName: string, obfile: TFile, file_contents: string, path:string, url: string, data: FileData, file_cache: CachedMetadata) {
+        super(vaultName, obfile, file_contents, path, url, data, file_cache)
         this.custom_regexps = data.custom_regexps
     }
 
@@ -294,7 +310,9 @@ export class AllFile extends AbstractFile {
         for (let note_match of this.file.matchAll(this.data.NOTE_REGEXP)) {
             let [note, position]: [string, number] = [note_match[1], note_match.index + note_match[0].indexOf(note_match[1]) + note_match[1].length]
             // That second thing essentially gets the index of the end of the first capture group.
+            let noteMeta:NoteMeta = {url : this.getUrl(), source : this.getSourceString()}
             let parsed = new Note(
+                noteMeta,
                 note,
                 this.data.fields_dict,
                 this.data.curly_cloze,
@@ -332,7 +350,9 @@ export class AllFile extends AbstractFile {
         for (let note_match of this.file.matchAll(this.data.INLINE_REGEXP)) {
             let [note, position]: [string, number] = [note_match[1], note_match.index + note_match[0].indexOf(note_match[1]) + note_match[1].length]
             // That second thing essentially gets the index of the end of the first capture group.
+            let noteMeta:NoteMeta = {url : this.getUrl(), source : this.getSourceString()}
             let parsed = new InlineNote(
+                noteMeta,
                 note,
                 this.data.fields_dict,
                 this.data.curly_cloze,
@@ -366,6 +386,8 @@ export class AllFile extends AbstractFile {
         //Search the file for regex matches
         //ignoring matches inside ignore_spans,
         //and adding any matches to ignore_spans.
+        let url = this.getUrl()
+        let noteSource = this.getSourceString()
         for (let search_id of [true, false]) {
             for (let search_tags of [true, false]) {
                 let id_str = search_id ? ID_REGEXP_STR : ""
@@ -374,6 +396,7 @@ export class AllFile extends AbstractFile {
                 for (let match of findignore(regexp, this.file, this.ignore_spans)) {
                     this.ignore_spans.push([match.index, match.index + match[0].length])
                     const parsed: AnkiConnectNoteAndID = new RegexNote(
+                        {url: url, source: noteSource},
                         match, note_type, this.data.fields_dict,
                         search_tags, search_id, this.data.curly_cloze, this.data.highlights_to_cloze, this.formatter
                     ).parse(
