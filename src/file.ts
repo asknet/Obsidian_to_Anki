@@ -167,7 +167,7 @@ abstract class AbstractFile {
     }
 
     getContextAtIndex(position: number): string {
-        let result: string = this.path
+        let result: string = this.path.replace('.md', '')
         let currentContext: HeadingCache[] = []
         if (!(this.file_cache.hasOwnProperty('headings'))) {
             return result
